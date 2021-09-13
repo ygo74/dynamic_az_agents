@@ -1,0 +1,23 @@
+# escape=`
+
+FROM mcr.microsoft.com/windows/servercore:ltsc2019
+ARG AZP_AGENT_VERSION=2.192.0
+
+RUN powershell " `
+    $ErrorActionPreference = 'Stop'; `
+    $ProgressPreference = 'SilentlyContinue'; `
+    $AgentVersion = $env:AZP_AGENT_VERSION; `
+    New-Item '\azp\agent' -ItemType directory | Out-Null; `
+    Invoke-WebRequest `
+        -UseBasicParsing `
+        -Uri https://vstsagentpackage.azureedge.net/agent/$($AgentVersion)/vsts-agent-win-x64-$($AgentVersion).zip `
+        -OutFile '\azp\agent\vsts-agent-win-x64.zip'; `
+    Expand-Archive -Path '\azp\agent\vsts-agent-win-x64.zip' -DestinationPath '\azp\agent\'; `
+    Remove-Item -Path '\azp\agent\vsts-agent-win-x64.zip' -Force; `
+    "
+
+WORKDIR /azp
+
+COPY start_short.ps1 .
+
+CMD powershell .\start_short.ps1

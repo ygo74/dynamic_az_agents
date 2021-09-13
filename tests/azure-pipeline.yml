@@ -1,0 +1,18 @@
+jobs:
+
+  - job: IdentifyBuildContext
+    displayName: Identify Build context
+    pool:
+      name: Default
+      demands:
+        - Agent.Name -equals BuildHub
+
+    steps:
+
+      # Start Docker agent containers for the build
+      - task: PowerShell@2
+        displayName: Start Docker agent containers for the build
+        inputs:
+          targetType: inline
+          script: |
+            Write-host "Hello"
