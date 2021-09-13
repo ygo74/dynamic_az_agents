@@ -98,10 +98,7 @@ jobs:
     pool:
       name: Default
       demands:
-        - Agent.Name -equals $(azp_agent_name)
-
-    variables:
-      azp_agent_name: agent_$(Build.BuildId)
+        - Agent.Name -equals agent_$(Build.BuildId)
 
     steps:
 
