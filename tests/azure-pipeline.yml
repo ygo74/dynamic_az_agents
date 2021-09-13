@@ -1,3 +1,6 @@
+variables:
+- group: Buildhub
+
 jobs:
 
   - job: IdentifyBuildContext
@@ -16,3 +19,30 @@ jobs:
           targetType: inline
           script: |
             Write-host "Hello"
+            Get-Childitem env:\
+
+            Write-Host "Start docker container agents"
+            docker run --rm -it -e AZP_URL=$Env:AZP_URL -e AZP_TOKEN=$Env:AZP_TOKEN -e AZP_AGENT_NAME=mydockeragent azuredevopsbuildinfra:latest
+        env:
+          AZP_TOKEN: $(register_agent_pat)
+          AZP_URL:   $(azure_collection_url)
+
+  - job: Build Application
+    displayName: Build Application
+    dependsOn:
+      - IdentifyBuildContext
+    pool:
+      name: Default
+      demands:
+        - BUILD_UNIQUE_ID -equals 12345
+
+    steps:
+
+      # Run Build Task
+      - task: PowerShell@2
+        displayName: Run Build Task
+        inputs:
+          targetType: inline
+          script: |
+            Write-host "Hello"
+            Get-Childitem env:\
