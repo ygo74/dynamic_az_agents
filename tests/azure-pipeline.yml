@@ -18,11 +18,10 @@ jobs:
         inputs:
           targetType: inline
           script: |
-            Write-host "Hello"
             Get-Childitem env:\
 
             Write-Host "Start docker container agents"
-            docker run --rm -e AZP_URL=$Env:AZP_URL -e AZP_TOKEN=$Env:AZP_TOKEN -e AZP_AGENT_NAME=mydockeragent azuredevopsbuildinfra:latest
+            docker run --rm -d --name az_agent_$(Build.BuildId) -e AZP_URL=$Env:AZP_URL -e AZP_TOKEN=$Env:AZP_TOKEN -e AZP_AGENT_NAME=dockeragent_$(Build.BuildId) azuredevopsbuildinfra:latest
         env:
           AZP_TOKEN: $(register_agent_pat)
           AZP_URL:   $(azure_collection_url)
@@ -34,7 +33,8 @@ jobs:
     pool:
       name: Default
       demands:
-        - BUILD_UNIQUE_ID -equals 12345
+        # - BUILD_UNIQUE_ID -equals 12345
+        - Agent.Name -equals dockeragent_$(Build.BuildId)
 
     steps:
 
