@@ -1,8 +1,14 @@
 variables:
 - group: Buildhub
 
+- name: azp_agent_name
+  value: agent_$(Build.BuildId)
+
 jobs:
 
+  # -------------------------------------------------------------------------------------------------
+  # Setup dynamic docker agents
+  # -------------------------------------------------------------------------------------------------
   - job: IdentifyBuildContext
     displayName: Identify Build context
     pool:
@@ -24,7 +30,7 @@ jobs:
         env:
           AZP_TOKEN: $(register_agent_pat)
           AZP_URL:   $(azure_collection_url)
-          AZP_AGENT_NAME: agent_$(Build.BuildId)
+          AZP_AGENT_NAME: $(azp_agent_name)
 
       - task: PowerShell@2
         displayName: Wait Docker Agent is ready to take jobs
@@ -80,8 +86,11 @@ jobs:
         env:
           AZP_TOKEN: $(register_agent_pat)
           AZP_URL:   $(azure_collection_url)
-          AZP_AGENT_NAME: agent_$(Build.BuildId)
+          AZP_AGENT_NAME: $(azp_agent_name)
 
+  # -------------------------------------------------------------------------------------------------
+  # Build Application
+  # -------------------------------------------------------------------------------------------------
   - job: BuildApplication
     displayName: Build Application
     dependsOn:
@@ -89,8 +98,7 @@ jobs:
     pool:
       name: Default
       demands:
-        # - BUILD_UNIQUE_ID -equals 12345
-        - Agent.Name -equals dockeragent_$(Build.BuildId)
+        - Agent.Name -equals $(azp_agent_name)
 
     steps:
 
@@ -102,3 +110,32 @@ jobs:
           script: |
             Write-host "Hello"
             Get-Childitem env:\
+
+  # -------------------------------------------------------------------------------------------------
+  # Clean docker agents infrastructure after build if errors detected in previous configuration steps
+  # -------------------------------------------------------------------------------------------------
+  - job: CleanResources
+    displayName: Clean docker agents
+    dependsOn:
+      - IdentifyBuildContext
+      - BuildApplication
+    pool:
+      name: Default
+
+    condition: always()
+
+    steps:
+
+      # Run Build Task
+      - task: PowerShell@2
+        displayName: Run Build Task
+        inputs:
+          targetType: inline
+          script: |
+            Write-host "Todo : Ensure resources are cleaning"
+            Get-Childitem env:\
+
+        env:
+          AZP_TOKEN: $(register_agent_pat)
+          AZP_URL:   $(azure_collection_url)
+          AZP_AGENT_NAME: $(azp_agent_name)
