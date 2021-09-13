@@ -1,7 +1,7 @@
 
 $PAT=$Env:AZP_TOKEN
-$AzureDevOpsAuthenicationHeader = @{Authorization = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$($PAT)")) }
 $UriOrganization = $env:AZP_URL
+$AgentName = $env:AZP_AGENT_NAME
 
 
 # $UriPools = $UriOrganization + '/_apis/distributedtask/pools?api-version=6.0'
@@ -9,11 +9,11 @@ $UriOrganization = $env:AZP_URL
 
 $PoolId = "1"
 $uriAgents = $UriOrganization + "/_apis/distributedtask/pools/$($PoolId)/agents?api-version=6.0"
+$AzureDevOpsAuthenicationHeader = @{Authorization = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$($PAT)")) }
 
 $timeout = 5
 $StartWait = Get-Date
 $findAgent = $false
-$AgentName = "dockeragent_669"
 $nbretry = 0
 while(-not $findAgent)
 {

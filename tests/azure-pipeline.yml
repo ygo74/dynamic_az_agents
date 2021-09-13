@@ -18,14 +18,13 @@ jobs:
         inputs:
           targetType: inline
           script: |
-            Get-Childitem env:\
-
             Write-Host "Start docker container agents"
-            docker run --rm -d --name az_agent_$(Build.BuildId) -e AZP_URL=$Env:AZP_URL -e AZP_TOKEN=$Env:AZP_TOKEN -e AZP_AGENT_NAME=dockeragent_$(Build.BuildId) azuredevopsbuildinfra:latest
+            docker run --rm -d --name $Env:AZP_AGENT_NAME -e AZP_URL=$Env:AZP_URL -e AZP_TOKEN=$Env:AZP_TOKEN -e AZP_AGENT_NAME=$Env:AZP_AGENT_NAME azuredevopsbuildinfra:latest
 
         env:
           AZP_TOKEN: $(register_agent_pat)
           AZP_URL:   $(azure_collection_url)
+          AZP_AGENT_NAME: agent_$(Build.BuildId)
 
       - task: PowerShell@2
         displayName: Wait Docker Agent is ready to take jobs
@@ -33,8 +32,9 @@ jobs:
           targetType: inline
           script: |
             $PAT=$Env:AZP_TOKEN
-            $AzureDevOpsAuthenicationHeader = @{Authorization = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$($PAT)")) }
             $UriOrganization = $env:AZP_URL
+            $AgentName = $Env:AZP_AGENT_NAME
+
 
 
             # $UriPools = $UriOrganization + '/_apis/distributedtask/pools?api-version=6.0'
@@ -42,11 +42,11 @@ jobs:
 
             $PoolId = "1"
             $uriAgents = $UriOrganization + "/_apis/distributedtask/pools/$($PoolId)/agents?api-version=6.0"
+            $AzureDevOpsAuthenicationHeader = @{Authorization = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$($PAT)")) }
 
             $timeout = 5
             $StartWait = Get-Date
             $findAgent = $false
-            $AgentName = "dockeragent_669"
             $nbretry = 0
             while(-not $findAgent)
             {
@@ -80,6 +80,7 @@ jobs:
         env:
           AZP_TOKEN: $(register_agent_pat)
           AZP_URL:   $(azure_collection_url)
+          AZP_AGENT_NAME: agent_$(Build.BuildId)
 
   - job: BuildApplication
     displayName: Build Application
