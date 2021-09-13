@@ -22,7 +22,7 @@ jobs:
             Get-Childitem env:\
 
             Write-Host "Start docker container agents"
-            docker run --rm -it -e AZP_URL=$Env:AZP_URL -e AZP_TOKEN=$Env:AZP_TOKEN -e AZP_AGENT_NAME=mydockeragent azuredevopsbuildinfra:latest
+            docker run --rm -e AZP_URL=$Env:AZP_URL -e AZP_TOKEN=$Env:AZP_TOKEN -e AZP_AGENT_NAME=mydockeragent azuredevopsbuildinfra:latest
         env:
           AZP_TOKEN: $(register_agent_pat)
           AZP_URL:   $(azure_collection_url)
