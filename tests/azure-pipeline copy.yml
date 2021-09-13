@@ -1,0 +1,191 @@
+variables:
+- group: Buildhub
+
+jobs:
+
+  # -------------------------------------------------------------------------------------------------
+  # Setup dynamic docker agents
+  # -------------------------------------------------------------------------------------------------
+  - job: IdentifyBuildContext
+    displayName: Identify Build context
+    pool:
+      name: Default
+      demands:
+        - Agent.Name -equals BuildHub
+
+    variables:
+      azp_agent_name: agent_$(Build.BuildId)
+
+    steps:
+
+      # Start Docker agent containers for the build
+      - task: PowerShell@2
+        displayName: Start Docker agent containers for the build
+        inputs:
+          targetType: inline
+          script: |
+            Write-Host "Start docker container agents"
+            docker run --rm -d --name $Env:AZP_AGENT_NAME -e AZP_URL=$Env:AZP_URL -e AZP_TOKEN=$Env:AZP_TOKEN -e AZP_AGENT_NAME=$Env:AZP_AGENT_NAME azuredevopsbuildinfra:latest
+
+        env:
+          AZP_TOKEN: $(register_agent_pat)
+          AZP_URL:   $(azure_collection_url)
+          AZP_AGENT_NAME: $(azp_agent_name)
+
+      - task: PowerShell@2
+        displayName: Wait Docker Agent is ready to take jobs
+        inputs:
+          targetType: inline
+          script: |
+            $PAT=$Env:AZP_TOKEN
+            $UriOrganization = $env:AZP_URL
+            $AgentName = $Env:AZP_AGENT_NAME
+
+
+
+            # $UriPools = $UriOrganization + '/_apis/distributedtask/pools?api-version=6.0'
+            # $PoolsResult = Invoke-RestMethod -Uri $UriPools -Method get -Headers $AzureDevOpsAuthenicationHeader
+
+            $PoolId = "1"
+            $uriAgents = $UriOrganization + "/_apis/distributedtask/pools/$($PoolId)/agents?api-version=$($Env:AZP_API_VERSION)"
+            $AzureDevOpsAuthenicationHeader = @{Authorization = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$($PAT)")) }
+
+            $timeout = 5
+            $StartWait = Get-Date
+            $findAgent = $false
+            $nbretry = 0
+            while(-not $findAgent)
+            {
+                $nbretry ++
+                Write-Host ("Try to retrieve agent '{0}' in Pool '{1}', Nb retry : '{2}'" -f $AgentName, $PoolId, $nbretry)
+
+                $AgentsResults = Invoke-RestMethod -Uri $uriAgents -Method get -Headers $AzureDevOpsAuthenicationHeader
+                $findAgent = ($null -ne ($AgentsResults.value | Where-Object {($_.Name -eq $AgentName ) -and ($_.enabled)}))
+                if (-not $findAgent)
+                {
+                    # Timeout Management
+                    $duration = (Get-Date) - $StartWait
+                    if ($duration.TotalMinutes -ge $timeout)
+                    {
+                        Write-Host "##vso[task.logissue type=error]Timeout reached before docker agent is ready."
+                        throw "Error"
+                        exit 1
+                    }
+
+                    # Pause for 10 seconds
+                    Write-Host ("Agent '{0}' not found in Pool '{1}', Wait '{2}' seconds" -f $AgentName, $PoolId, 10)
+                    Start-Sleep -Seconds 10
+
+                }
+                else
+                {
+                    Write-Host ("Found Agent '{0}' in Pool '{1}'" -f $AgentName, $PoolId)
+                }
+            }
+
+        env:
+          AZP_TOKEN: $(register_agent_pat)
+          AZP_URL:   $(azure_collection_url)
+          AZP_AGENT_NAME: $(azp_agent_name)
+          AZP_API_VERSION: $(azp_api_version)
+
+  # -------------------------------------------------------------------------------------------------
+  # Build Application
+  # -------------------------------------------------------------------------------------------------
+  - job: BuildApplication
+    displayName: Build Application
+    dependsOn:
+      - IdentifyBuildContext
+    pool:
+      name: Default
+      demands:
+        - Agent.Name -equals agent_$(Build.BuildId)
+
+    steps:
+
+      # Run Build Task
+      - task: PowerShell@2
+        displayName: Run Build Task
+        inputs:
+          targetType: inline
+          script: |
+            Write-host "Hello"
+            Get-Childitem env:\
+
+  # -------------------------------------------------------------------------------------------------
+  # Clean docker agents infrastructure after build if errors detected in previous configuration steps
+  # -------------------------------------------------------------------------------------------------
+  - job: CleanResources
+    displayName: Clean docker agents
+    dependsOn:
+      - IdentifyBuildContext
+      - BuildApplication
+    pool:
+      name: Default
+
+    variables:
+      azp_agent_name: agent_$(Build.BuildId)
+
+    condition: always()
+
+    steps:
+
+      # Ensure Docker Agent is Removed from the pool
+      - task: PowerShell@2
+        displayName: Ensure Docker Agent is Removed from the pool
+        inputs:
+          targetType: inline
+          script: |
+
+            $PAT=$Env:AZP_TOKEN
+            $UriOrganization = $env:AZP_URL
+            $AgentName = $env:AZP_AGENT_NAME
+
+
+            # $UriPools = $UriOrganization + '/_apis/distributedtask/pools?api-version=6.0'
+            # $PoolsResult = Invoke-RestMethod -Uri $UriPools -Method get -Headers $AzureDevOpsAuthenicationHeader
+
+            $PoolId = "1"
+            $uriAgents = $UriOrganization + "/_apis/distributedtask/pools/$($PoolId)/agents?api-version=$($Env:AZP_API_VERSION)"
+            $AzureDevOpsAuthenicationHeader = @{Authorization = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$($PAT)")) }
+
+            Write-Host ("Try to retrieve agent '{0}' in Pool '{1}'" -f $AgentName, $PoolId)
+
+            $AgentsResults = Invoke-RestMethod -Uri $uriAgents -Method get -Headers $AzureDevOpsAuthenicationHeader
+            $findAgent = $AgentsResults.value | Where-Object {($_.Name -eq $AgentName ) -and ($_.enabled)}
+            if ($null -eq $findAgent)
+            {
+                Write-Host ("Agent '{0}' already removed from Pool '{1}'" -f $AgentName, $PoolId)
+            }
+            else
+            {
+                Write-Host ("Found Agent '{0}' in Pool '{1}', remove it" -f $AgentName, $PoolId)
+                $uriAgentDetail = $UriOrganization + "/_apis/distributedtask/pools/$($PoolId)/agents/$($findAgent.Id)?api-version=$($Env:AZP_API_VERSION)"
+                Invoke-RestMethod -Uri $uriAgentDetail -Method Delete -Headers $AzureDevOpsAuthenicationHeader
+            }
+
+        env:
+          AZP_TOKEN: $(register_agent_pat)
+          AZP_URL:   $(azure_collection_url)
+          AZP_AGENT_NAME: $(azp_agent_name)
+          AZP_API_VERSION: $(azp_api_version)
+
+
+      # Ensure Docker Agent is Stopped
+      - task: PowerShell@2
+        displayName: Ensure Docker Agent is Stopped
+        inputs:
+          targetType: inline
+          script: |
+            Write-host ("Clean Docker agent '{0}'" -f $Env:AZP_AGENT_NAME)
+            $result = docker ps -f name=$env:AZP_AGENT_NAME --format "table {{.Names}}" | select-string $env:AZP_AGENT_NAME
+            if ($null -ne $result)
+            {
+              docker stop $Env:AZP_AGENT_NAME # 2>&1 > $null
+            }
+
+        env:
+          AZP_TOKEN: $(register_agent_pat)
+          AZP_URL:   $(azure_collection_url)
+          AZP_AGENT_NAME: $(azp_agent_name)
+
