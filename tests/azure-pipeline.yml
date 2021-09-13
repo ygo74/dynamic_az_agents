@@ -178,7 +178,11 @@ jobs:
           targetType: inline
           script: |
             Write-host ("Clean Docker agent '{0}'" -f $Env:AZP_AGENT_NAME)
-            try { docker stop $Env:AZP_AGENT_NAME 2>&1 > $null } catch {}
+            $result = docker ps -f name=$env:AZP_AGENT_NAME --format "table {{.Names}}" | select-string $env:AZP_AGENT_NAME
+            if ($null -ne $result)
+            {
+              docker stop $Env:AZP_AGENT_NAME # 2>&1 > $null
+            }
 
         env:
           AZP_TOKEN: $(register_agent_pat)
