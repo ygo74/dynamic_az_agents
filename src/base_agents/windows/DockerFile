@@ -1,7 +1,7 @@
 # escape=`
 
 FROM mcr.microsoft.com/windows/servercore:ltsc2019
-ARG AZP_AGENT_VERSION=2.192.0
+ARG AZP_AGENT_VERSION=2.191.1
 
 RUN powershell " `
     $ErrorActionPreference = 'Stop'; `
