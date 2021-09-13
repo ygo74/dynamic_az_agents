@@ -27,7 +27,7 @@ jobs:
           AZP_TOKEN: $(register_agent_pat)
           AZP_URL:   $(azure_collection_url)
 
-  - job: Build Application
+  - job: BuildApplication
     displayName: Build Application
     dependsOn:
       - IdentifyBuildContext
