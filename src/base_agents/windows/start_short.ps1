@@ -22,8 +22,6 @@ if (-not (Test-Path Env:AZP_URL)) {
   # Let the agent ignore the token env variables
   $Env:VSO_AGENT_IGNORE = "AZP_TOKEN,AZP_TOKEN_FILE"
 
-  # Add capabilities to environment variables
-  $Env:BUILD_UNIQUE_ID = "12345"
   Set-Location agent
 
   try
