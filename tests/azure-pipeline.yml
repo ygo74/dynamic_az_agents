@@ -20,6 +20,10 @@ stages:
 
       steps:
 
+        - task: CalculateNextVersion@0
+          inputs:
+            samplestring: 'test'
+
         # Start Docker agent containers for the build
         - task: PowerShell@2
           displayName: Start Docker agent containers for the build
