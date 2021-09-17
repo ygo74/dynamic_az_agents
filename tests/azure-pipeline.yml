@@ -117,6 +117,9 @@ stages:
               Write-host "Hello"
               Get-Childitem env:\
 
+        - task: CalculateNextVersion@0
+          inputs:
+            samplestring: 'test'
 
 - stage: CleanDockerAgents
   displayName: Clean Docker Agents
