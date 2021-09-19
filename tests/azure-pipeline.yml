@@ -20,9 +20,10 @@ stages:
 
       steps:
 
-        - task: CalculateNextVersion@0
+        - task: CalculateNextVersionTest@1
           inputs:
-            samplestring: 'test'
+            technology: 'npm'
+            npmRepositoryUrl: 'http'
 
         # Start Docker agent containers for the build
         - task: PowerShell@2
@@ -121,9 +122,10 @@ stages:
               Write-host "Hello"
               Get-Childitem env:\
 
-        - task: CalculateNextVersion@0
+        - task: CalculateNextVersionTest@1
           inputs:
-            samplestring: 'test'
+            technology: 'npm'
+            npmRepositoryUrl: 'http'
 
 - stage: CleanDockerAgents
   displayName: Clean Docker Agents
