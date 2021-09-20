@@ -1,0 +1,98 @@
+# escape=`
+
+ARG DockerCustomRegistry
+ARG BaseImage
+ARG BaseImageTag
+
+# -----------------------------------------------------------------------------
+# Reference original microsoft sdk images to retrieve components
+# -----------------------------------------------------------------------------
+FROM ${DockerCustomRegistry}/microsoft/dotnet/framework/sdk:4.8-windowsservercore-ltsc2019 as sdk
+
+# -----------------------------------------------------------------------------
+# Reference java agents images to retrieve java jdk
+# -----------------------------------------------------------------------------
+FROM ${DockerCustomRegistry}/azure_devops/windows/servercore2019/java/redhat-openjdk-11:latest as jdk
+
+
+# -----------------------------------------------------------------------------
+# Start Image creation
+# -----------------------------------------------------------------------------
+FROM ${DockerCustomRegistry}/azure_devops/windows/servercore2019/base_agent:latest
+
+# -----------------------------------------------------------------------------
+# Install NuGet CLI from Base
+# -----------------------------------------------------------------------------
+COPY --from=sdk [ "/Program Files/Nuget", "/Program Files/Nuget" ]
+
+# -----------------------------------------------------------------------------
+# Download and Install Build Tools
+# -----------------------------------------------------------------------------
+RUN powershell -Command `
+    $ProgressPreference = 'SilentlyContinue'; `
+    Invoke-webrequest -uri "https://download.visualstudio.microsoft.com/download/pr/22c17f05-944c-48dc-9f68-b1663f9df4cb/f3f6868ff82ea90b510c3ef76b8ee3ed2b559795da8dd80f3706fb8a7f7510d6/vs_BuildTools.exe `
+                      -outfile C:/Delivery/vs_buildtools.exe -UseBasicParsing; `
+
+# Install VS components
+RUN `
+    # Install VS Build Tools
+    setx /M DOTNET_SKIP_FIRST_TIME_EXPERIENCE 1 `
+    && start /D C:\Delivery\vs_buildtools /w C:\Delivery\vs_buildtools\vs_buildtools-16.11.0.exe ^ `
+        --quiet --wait --norestart --noweb --noUpdateInstaller  `
+    || IF "%ERRORLEVEL%"=="3010" EXIT 0 `
+    `
+    # Cleanup
+    && del C:/Delivery/vs_buildtools.exe `
+    && rmdir /S /Q "C:\Delivery\vs_buildtools" `
+    && rmdir /S /Q "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer" `
+    && powershell Remove-Item -Force -Recurse "%TEMP%\*" `
+    && rmdir /S /Q "%ProgramData%\Package Cache"
+
+# -----------------------------------------------------------------------------
+# Install components from SDK image and put same beahavior as defined in the Microsoft sdk
+# -----------------------------------------------------------------------------
+
+# Install web targets
+COPY --from=sdk [ "/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/MSBuild/Microsoft/VisualStudio/v16.0", "/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/MSBuild/Microsoft/VisualStudio/v16.0" ]
+
+# Install Targeting Packs
+COPY --from=sdk [ "/Program Files (x86)/Reference Assemblies/Microsoft/Framework/.NETFramework", "/Program Files (x86)/Reference Assemblies/Microsoft/Framework/.NETFramework" ]
+
+
+ENV ROSLYN_COMPILER_LOCATION "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\Roslyn"
+
+# ngen assemblies queued by VS installers - must be done in cmd shell to avoid access issues
+RUN `
+    # Workaround for issue with 32 bit assemblies from .NET Framework 4.8 SDK being 64 bit ngen'ed
+    \Windows\Microsoft.NET\Framework64\v4.0.30319\ngen uninstall "%ProgramFiles(x86)%\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.8 Tools\SecAnnotate.exe" `
+    && \Windows\Microsoft.NET\Framework64\v4.0.30319\ngen uninstall "%ProgramFiles(x86)%\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.8 Tools\WinMDExp.exe" `
+    `
+    && \Windows\Microsoft.NET\Framework64\v4.0.30319\ngen update `
+    && \Windows\Microsoft.NET\Framework\v4.0.30319\ngen update
+
+# -----------------------------------------------------------------------------
+# Install Java from jdk
+# -----------------------------------------------------------------------------
+#COPY --from=jdk [ "/tools/java", "/tools/java" ]
+
+#ENV JAVA_HOME=C:\tools\java
+
+# Set PATH in one layer to keep image size down.
+RUN powershell setx /M PATH $(${Env:PATH} `
+    + \";c:\tools\java\bin\" `
+    + \";${Env:ProgramFiles}\NuGet\" `
+    + \";${Env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\TestAgent\Common7\IDE\CommonExtensions\Microsoft\TestWindow\" `
+    + \";${Env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\" `
+    + \";${Env:ProgramFiles(x86)}\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.8 Tools\" `
+    + \";${Env:ProgramFiles(x86)}\Microsoft SDKs\ClickOnce\SignTool\")
+
+# -----------------------------------------------------------------------------
+# Install VS Quality Tools
+# -----------------------------------------------------------------------------
+# COPY resources/quality_tools resources/quality_tools
+
+# RUN `
+#    # Install DLL from Visual studio 11.0
+#    gacutil -i resources\quality_tools\11.0\Microsoft.VisualStudio.QualityTools.UnitTestFramework.dll `
+#    && gacutil -i resources\quality_tools\11.0\Microsoft.VisualStudio.QualityTools.WebTestFramework.dll `
+#    && gacutil -i resources\quality_tools\11.0\Microsoft.VisualStudio.QualityTools.LoadTestFramework.dll
